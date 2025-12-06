@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
 <JWM>
+    <!-- 自动最大化所有窗口，适合远程桌面 -->
     <Group>
-        <Option>noborder</Option>
-        <Option>notitle</Option>
         <Option>maximized</Option>
     </Group>
 </JWM>
