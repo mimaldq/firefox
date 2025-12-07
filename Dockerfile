@@ -13,20 +13,19 @@ RUN apk update && \
 FROM alpine:edge
 WORKDIR /root
 
-# 安装依赖 - 添加 expect 用于非交互密码设置
+# 安装依赖 - 使用 tightvncserver 替代 x11vnc
 RUN apk update && \
     apk add --no-cache \
     bash \
     fluxbox \
     xvfb \
-    x11vnc \
+    tightvncserver \
     supervisor \
     novnc \
     websockify \
     ttf-freefont \
     sudo \
-    font-noto-cjk \
-    expect
+    font-noto-cjk
 
 # 从第一阶段复制Firefox
 COPY --from=firefox-builder /usr/lib/firefox /usr/lib/firefox
@@ -50,7 +49,7 @@ RUN chmod +x /entrypoint.sh && \
     mkdir -p /var/log
 
 # 暴露默认端口
-EXPOSE 7860 5901
+EXPOSE 6901 5901
 
 # 启动脚本
 ENTRYPOINT ["/entrypoint.sh"]
