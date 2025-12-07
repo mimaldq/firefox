@@ -1,142 +1,131 @@
 #!/bin/bash
 set -e
 
-# 创建VNC密码文件（非交互方式）
+echo "===== Firefox + noVNC 容器启动中 ====="
+
+# 创建必要的目录
+mkdir -p ~/.vnc
+mkdir -p /var/log
+mkdir -p ~/.fluxbox
+
+# VNC密码设置（非交互方式）
 if [ -n "$VNC_PASSWORD" ]; then
-    echo "设置VNC密码..."
-    mkdir -p ~/.vnc
+    echo "正在设置VNC密码..."
     
-    # 使用非交互方式创建密码文件
-    # 方法1: 使用expect模拟交互（如果安装了expect）
-    # 方法2: 使用openssl生成兼容格式的密码文件
-    
-    # 使用openssl生成VNC密码文件（兼容x11vnc格式）
-    # VNC密码是8位，如果超过8位会被截断
-    PASS_LENGTH=${#VNC_PASSWORD}
-    if [ $PASS_LENGTH -gt 8 ]; then
-        echo "注意：VNC密码超过8位，将被截断为前8位字符"
-        TRUNCATED_PASSWORD=$(echo "$VNC_PASSWORD" | cut -c1-8)
-        echo "$TRUNCATED_PASSWORD" | x11vnc -storepasswd - ~/.vnc/passwd -f
-    else
-        echo "$VNC_PASSWORD" | x11vnc -storepasswd - ~/.vnc/passwd -f
+    # 方法1：使用vncpasswd（如果可用）
+    if command -v vncpasswd > /dev/null 2>&1; then
+        echo "$VNC_PASSWORD" | vncpasswd -f > ~/.vnc/passwd 2>/dev/null
     fi
     
-    # 如果上面的方法失败，使用备用方法
+    # 方法2：使用x11vnc的非交互模式
     if [ ! -f ~/.vnc/passwd ] || [ ! -s ~/.vnc/passwd ]; then
-        echo "使用备用方法生成密码文件..."
-        # 创建一个临时的expect脚本
-        cat > /tmp/setup_vnc_password.exp << 'EOF'
-#!/usr/bin/expect -f
-set password [lindex $argv 0]
-set password_file [lindex $argv 1]
-spawn x11vnc -storepasswd $password $password_file
-expect "Enter VNC password:"
-send "$password\r"
-expect "Verify password:"
-send "$password\r"
-expect eof
-EOF
-        chmod +x /tmp/setup_vnc_password.exp
+        echo "使用x11vnc创建密码文件..."
+        # 创建临时文件存储密码
+        echo "$VNC_PASSWORD" > /tmp/vncpwd.txt
+        # 使用非交互模式创建密码文件
+        x11vnc -storepasswd "$VNC_PASSWORD" ~/.vnc/passwd 2>&1 || true
         
-        # 使用expect脚本
-        if command -v expect > /dev/null 2>&1; then
-            /tmp/setup_vnc_password.exp "$VNC_PASSWORD" ~/.vnc/passwd
-        else
-            echo "警告：无法生成VNC密码文件，VNC连接将不需要密码"
-            rm -f ~/.vnc/passwd
+        # 如果还是失败，使用备用方案
+        if [ ! -f ~/.vnc/passwd ]; then
+            echo "使用备用密码创建方法..."
+            # 创建一个基本的密码文件（可能需要trim到8个字符）
+            TRUNC_PWD=$(echo "$VNC_PASSWORD" | cut -c1-8)
+            echo "$TRUNC_PWD" > ~/.vnc/passwd.tmp
+            x11vnc -storepasswd "$TRUNC_PWD" ~/.vnc/passwd 2>&1 || true
         fi
-        rm -f /tmp/setup_vnc_password.exp
     fi
     
+    # 检查密码文件是否创建成功
     if [ -f ~/.vnc/passwd ] && [ -s ~/.vnc/passwd ]; then
-        VNC_PASSWD_OPT="-passwdfile ~/.vnc/passwd"
-        echo "VNC密码已成功设置"
+        chmod 600 ~/.vnc/passwd
+        VNC_AUTH_OPT="-passwdfile ~/.vnc/passwd"
+        echo "✓ VNC密码设置成功"
     else
-        echo "警告：VNC密码文件生成失败，VNC连接将不需要密码"
-        VNC_PASSWD_OPT=""
+        echo "⚠ VNC密码文件创建失败，使用无密码连接"
+        VNC_AUTH_OPT="-nopw"
     fi
 else
-    echo "警告：未设置VNC_PASSWORD环境变量，VNC连接将不需要密码"
-    VNC_PASSWD_OPT=""
+    echo "⚠ 未设置VNC_PASSWORD，使用无密码连接"
+    VNC_AUTH_OPT="-nopw"
 fi
 
-# 更新Supervisor配置中的端口
-echo "配置noVNC端口：${NOVNC_PORT}"
-echo "配置VNC端口：${VNC_PORT}"
+# 显示配置信息
+echo "配置信息:"
+echo "  noVNC端口: ${NOVNC_PORT}"
+echo "  VNC端口: ${VNC_PORT}"
+echo "  分辨率: ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x${DISPLAY_DEPTH}"
 
-# 生成动态的Supervisor配置文件
+# 生成Supervisor配置文件
 cat > /etc/supervisord.conf << EOF
 [supervisord]
 nodaemon=true
 logfile=/var/log/supervisord.log
-logfile_maxbytes=50MB
-logfile_backups=10
+logfile_maxbytes=1MB
+logfile_backups=1
 loglevel=info
-pidfile=/var/run/supervisord.pid
+pidfile=/tmp/supervisord.pid
 
 [program:xvfb]
 command=Xvfb :0 -screen 0 ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x${DISPLAY_DEPTH} -ac +extension GLX +render -noreset
 autorestart=true
+startsecs=2
 startretries=10
 stdout_logfile=/var/log/xvfb.log
 stdout_logfile_maxbytes=1MB
-stderr_logfile=/var/log/xvfb.error.log
+stderr_logfile=/var/log/xvfb.err.log
 stderr_logfile_maxbytes=1MB
 
 [program:fluxbox]
 command=fluxbox
 autorestart=true
 environment=DISPLAY=:0
+startsecs=3
 startretries=10
 stdout_logfile=/var/log/fluxbox.log
 stdout_logfile_maxbytes=1MB
-stderr_logfile=/var/log/fluxbox.error.log
+stderr_logfile=/var/log/fluxbox.err.log
 stderr_logfile_maxbytes=1MB
 
 [program:x11vnc]
-command=x11vnc -display :0 -forever -shared -rfbport ${VNC_PORT} ${VNC_PASSWD_OPT} -noxdamage -bg -o /var/log/x11vnc.log
+command=x11vnc -display :0 -forever -shared -rfbport ${VNC_PORT} ${VNC_AUTH_OPT} -noxdamage -bg -o /var/log/x11vnc.log
 autorestart=true
+startsecs=3
 startretries=10
 stdout_logfile=/var/log/x11vnc.log
 stdout_logfile_maxbytes=1MB
-stderr_logfile=/var/log/x11vnc.error.log
+stderr_logfile=/var/log/x11vnc.err.log
 stderr_logfile_maxbytes=1MB
 
 [program:novnc]
 command=websockify --web /usr/share/novnc ${NOVNC_PORT} localhost:${VNC_PORT}
 autorestart=true
+startsecs=3
 startretries=10
 stdout_logfile=/var/log/novnc.log
 stdout_logfile_maxbytes=1MB
-stderr_logfile=/var/log/novnc.error.log
+stderr_logfile=/var/log/novnc.err.log
 stderr_logfile_maxbytes=1MB
 EOF
 
-# 设置Fluxbox配置
-mkdir -p ~/.fluxbox
+# 创建Fluxbox配置
 cat > ~/.fluxbox/init << EOF
 session.screen0.toolbar.visible: false
 session.screen0.fullMaximization: false
 background: none
 [begin] (fluxbox)
-[exec] (Firefox) {firefox --display=:0 --no-remote --new-instance}
+[exec] (Firefox) {firefox --display=:0 --no-remote --new-instance --width=${DISPLAY_WIDTH} --height=${DISPLAY_HEIGHT}}
 [end]
 EOF
 
-# 创建日志目录
-mkdir -p /var/log
+# 设置noVNC首页
+cp /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
 echo "================================"
-echo "Firefox + noVNC 容器已启动"
-echo "noVNC Web访问: http://<host>:${NOVNC_PORT}"
-echo "VNC服务器端口: ${VNC_PORT}"
-if [ -n "$VNC_PASSWORD" ] && [ -f ~/.vnc/passwd ]; then
-    echo "VNC密码已设置"
-else
-    echo "警告：VNC连接未设置密码"
-fi
-echo "显示分辨率: ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}"
+echo "容器启动完成!"
+echo "访问地址: http://<主机IP>:${NOVNC_PORT}"
+echo "VNC端口: ${VNC_PORT}"
+[ -n "$VNC_PASSWORD" ] && [ -f ~/.vnc/passwd ] && echo "VNC密码: 已设置"
 echo "================================"
 
-# 启动Supervisor
+# 启动所有服务
 exec /usr/bin/supervisord -c /etc/supervisord.conf
