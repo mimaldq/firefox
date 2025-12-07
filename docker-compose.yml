@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  firefox:
+    image: ghcr.io/your-username/lightweight-firefox-novnc:latest
+    container_name: lightweight-firefox
+    restart: unless-stopped
+    ports:
+      - "${NOVNC_PORT:-5800}:5800"
+      - "${VNC_PORT:-5900}:5900"
+    environment:
+      - VNC_PASSWORD=${VNC_PASSWORD:-changeme}
+      - DISPLAY_WIDTH=${DISPLAY_WIDTH:-1280}
+      - DISPLAY_HEIGHT=${DISPLAY_HEIGHT:-720}
+      - NOVNC_PORT=${NOVNC_PORT:-5800}
+      - VNC_PORT=${VNC_PORT:-5900}
+    shm_size: "${SHM_SIZE:-1g}"
+    volumes:
+      - firefox-profile:/root/.mozilla
+      - ./downloads:/root/Downloads
+    healthcheck:
+      test: ["CMD", "netstat", "-an", "|", "grep", ":5800"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  firefox-profile:
