@@ -1,38 +1,58 @@
-FROM alpine:latest
+# 第一阶段：构建Firefox
+FROM alpine:edge AS firefox-builder
+WORKDIR /tmp
 
-RUN apk add --no-cache \
+# 安装Firefox及依赖
+RUN apk update && \
+    apk add --no-cache \
     firefox \
-    firefox-lang-en \
-    libc6-compat \
+    ttf-freefont \
+    dbus
+
+# 第二阶段：构建最终镜像
+FROM alpine:edge
+WORKDIR /root
+
+# 安装依赖（包含sudo用于密码设置）
+RUN apk update && \
+    apk add --no-cache \
+    bash \
+    fluxbox \
     xvfb \
     x11vnc \
+    supervisor \
     novnc \
     websockify \
-    jwm \
-    supervisor \
-    dumb-init \
     ttf-freefont \
-    busybox-extras \
-    && rm -rf /tmp/* /var/tmp/* \
-    && ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html 2>/dev/null || true
+    sudo \
+    font-noto-cjk
 
-RUN adduser -D -u 1000 firefox-user \
-    && mkdir -p /home/firefox-user/.mozilla \
-    && mkdir -p /home/firefox-user/Downloads \
-    && chown -R firefox-user:firefox-user /home/firefox-user
+# 从第一阶段复制Firefox
+COPY --from=firefox-builder /usr/lib/firefox /usr/lib/firefox
+COPY --from=firefox-builder /usr/bin/firefox /usr/bin/firefox
+RUN ln -s /usr/lib/firefox/firefox /usr/local/bin/firefox
 
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY jwmrc /etc/jwm/jwmrc
+# 复制配置文件和启动脚本
+COPY supervisord.conf /etc/supervisord.conf
+COPY fluxbox-init /root/.fluxbox/init
+COPY entrypoint.sh /entrypoint.sh
 
-# 修改点1：健康检查端口改为 7860
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:7860/ || exit 1
+# 设置noVNC首页
+RUN cp /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
-# 修改点2：声明暴露的端口改为 7860
-EXPOSE 7860
+# 使启动脚本可执行
+RUN chmod +x /entrypoint.sh
 
-WORKDIR /home/firefox-user
-USER firefox-user
+# 暴露默认端口（可通过环境变量覆盖）
+EXPOSE ${NOVNC_PORT:-6901} ${VNC_PORT:-5901}
 
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# 设置环境变量默认值
+ENV VNC_PASSWORD=alpine
+ENV NOVNC_PORT=7860
+ENV VNC_PORT=5901
+ENV DISPLAY_WIDTH=1280
+ENV DISPLAY_HEIGHT=720
+ENV DISPLAY_DEPTH=24
+
+# 设置容器启动命令
+ENTRYPOINT ["/entrypoint.sh"]
