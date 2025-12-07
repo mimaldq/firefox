@@ -45,7 +45,7 @@ RUN chmod +x /entrypoint.sh && \
     mkdir -p /var/log
 
 # 暴露noVNC和VNC的默认端口
-EXPOSE 6901 5901
+EXPOSE 7860 5901
 
 # 容器启动入口
 ENTRYPOINT ["/entrypoint.sh"]
