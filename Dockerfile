@@ -1,19 +1,18 @@
 # 第一阶段：构建Firefox
 FROM alpine:edge AS firefox-builder
 WORKDIR /tmp
-
-# 安装Firefox及依赖
+# 安装Firefox及运行库[citation:7]
 RUN apk update && \
     apk add --no-cache \
     firefox \
     ttf-freefont \
     dbus
 
-# 第二阶段：构建最终镜像
+# 第二阶段：构建最终运行镜像
 FROM alpine:edge
 WORKDIR /root
 
-# 安装依赖 - 使用正确的包名
+# 安装所有必需组件[citation:7]
 RUN apk update && \
     apk add --no-cache \
     bash \
@@ -24,15 +23,13 @@ RUN apk update && \
     novnc \
     websockify \
     ttf-freefont \
-    sudo \
-    font-noto-cjk \
-    tigervnc  # 正确的包名，提供vncpasswd和vncserver
+    font-noto-cjk
 
-# 从第一阶段复制Firefox
+# 从构建阶段复制Firefox
 COPY --from=firefox-builder /usr/lib/firefox /usr/lib/firefox
 COPY --from=firefox-builder /usr/bin/firefox /usr/bin/firefox
 
-# 修复符号链接问题
+# 确保Firefox可执行文件链接正确
 RUN if [ -f /usr/bin/firefox ]; then \
         ln -sf /usr/bin/firefox /usr/local/bin/firefox 2>/dev/null || true; \
     elif [ -f /usr/lib/firefox/firefox ]; then \
@@ -40,17 +37,15 @@ RUN if [ -f /usr/bin/firefox ]; then \
         ln -sf /usr/lib/firefox/firefox /usr/local/bin/firefox 2>/dev/null || true; \
     fi
 
-# 复制启动脚本
+# 复制启动脚本并准备环境
 COPY entrypoint.sh /entrypoint.sh
-
-# 设置权限
 RUN chmod +x /entrypoint.sh && \
     mkdir -p /usr/share/novnc && \
     cp -r /usr/share/webapps/novnc/* /usr/share/novnc/ 2>/dev/null || true && \
     mkdir -p /var/log
 
-# 暴露默认端口
-EXPOSE 7860 5901
+# 暴露noVNC和VNC的默认端口
+EXPOSE 6901 5901
 
-# 启动脚本
+# 容器启动入口
 ENTRYPOINT ["/entrypoint.sh"]
