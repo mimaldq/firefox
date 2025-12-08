@@ -39,8 +39,8 @@ version: '3.8'
 
 services:
   firefox:
-    image: ghcr.io/goyo123321/lightweight-firefox-novnc:latest
-    container_name: lightweight-firefox
+    image: ghcr.io/goyo123321/firefox:latest
+    container_name: firefox
     restart: unless-stopped
     ports:
       - "${NOVNC_PORT:-7860}:7860"  # noVNC web界面
