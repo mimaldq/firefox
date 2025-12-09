@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# 设置语言环境（使用POSIX兼容的locale）
-export LANG=${LANG:-C.UTF-8}
-
 # 设置环境变量
 export DISPLAY=${DISPLAY:-:99}
 export DISPLAY_WIDTH=${DISPLAY_WIDTH:-1280}
@@ -11,28 +8,30 @@ export VNC_PASSWORD=${VNC_PASSWORD:-admin}
 export VNC_PORT=${VNC_PORT:-5900}
 export NOVNC_PORT=${NOVNC_PORT:-7860}
 export DATA_DIR=${DATA_DIR:-/data}
+export LANG=${LANG:-C.UTF-8}
+export LC_ALL=${LC_ALL:-C.UTF-8}
 
-# 如果挂载了/data目录，则使用它
+# 确保目录存在
+mkdir -p /root/.vnc
+
+# 创建VNC密码文件（如果不存在）
+if [ ! -f /root/.vnc/passwd ]; then
+    x11vnc -storepasswd "$VNC_PASSWORD" /root/.vnc/passwd > /dev/null 2>&1
+    echo "VNC password set to: $VNC_PASSWORD"
+fi
+
+# 如果挂载了/data目录，则创建子目录
 if [ -d "$DATA_DIR" ]; then
-    # 在/data目录下创建子目录结构
     mkdir -p "$DATA_DIR/downloads"
     mkdir -p "$DATA_DIR/firefox-profile"
     mkdir -p "$DATA_DIR/config"
     mkdir -p "$DATA_DIR/logs"
     
     # 如果/data/firefox-profile中有配置文件，使用它
-    if [ -d "$DATA_DIR/firefox-profile" ] && [ "$(ls -A $DATA_DIR/firefox-profile)" ]; then
-        echo "Using Firefox profile from $DATA_DIR/firefox-profile"
-        rm -rf /root/.mozilla
+    if [ -d "$DATA_DIR/firefox-profile" ] && [ "$(ls -A $DATA_DIR/firefox-profile 2>/dev/null)" ]; then
+        rm -rf /root/.mozilla 2>/dev/null || true
         ln -sf "$DATA_DIR/firefox-profile" /root/.mozilla
     fi
-fi
-
-# 创建VNC密码文件（如果不存在）
-if [ ! -f /root/.vnc/passwd ]; then
-    mkdir -p /root/.vnc
-    x11vnc -storepasswd "$VNC_PASSWORD" /root/.vnc/passwd
-    echo "VNC password set to: $VNC_PASSWORD"
 fi
 
 # 启动Xvfb（虚拟显示服务器）
@@ -67,12 +66,8 @@ if [ -d "$DATA_DIR" ]; then
     echo "Data directory mounted at: ${DATA_DIR}"
     echo "  - Downloads: ${DATA_DIR}/downloads"
     echo "  - Firefox profile: ${DATA_DIR}/firefox-profile"
-    echo "  - Config: ${DATA_DIR}/config"
-    echo "  - Logs: ${DATA_DIR}/logs"
 fi
 echo "======================================="
 
-# 进入无限循环保持容器运行
-while true; do
-    sleep 3600
-done
+# 保持容器运行
+tail -f /dev/null
