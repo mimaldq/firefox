@@ -27,12 +27,8 @@ mkdir -p "$DATA_DIR/firefox-profile"
 mkdir -p "$DATA_DIR/config"
 mkdir -p "$DATA_DIR/logs"
 
-# 创建字体缓存（确保字体被正确识别）
-if [ ! -f "$DATA_DIR/config/fonts.cache" ]; then
-    echo "Generating font cache..."
-    fc-cache -f -v
-    touch "$DATA_DIR/config/fonts.cache"
-fi
+# 创建字体缓存
+fc-cache -f
 
 # 创建VNC密码文件（如果不存在）
 if [ ! -f /root/.vnc/passwd ]; then
