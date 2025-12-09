@@ -23,6 +23,9 @@ LABEL org.opencontainers.image.title="Lightweight Firefox with noVNC"
 LABEL org.opencontainers.image.description="Ultra-lightweight Firefox browser with noVNC web access and VNC password support"
 LABEL org.opencontainers.image.licenses="MIT"
 
+# 首先更新包管理器
+RUN apk update
+
 # 安装所有运行时依赖（仅英文字体）
 RUN apk add --no-cache \
     firefox \
@@ -38,15 +41,10 @@ RUN apk add --no-cache \
     # 其他常用英文字体
     ttf-freefont \
     ttf-liberation \
-    ttf-inconsolata \
-    && rm -rf /var/cache/apk/*
+    ttf-inconsolata
 
-# 设置英文语言环境
-RUN apk add --no-cache \
-    locales \
-    && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
-    && locale-gen en_US.UTF-8 \
-    && rm -rf /var/cache/apk/*
+# 安装glibc locale支持（正确的方式）
+RUN apk add --no-cache glibc-langpack-en
 
 # 创建必要的目录结构
 RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d /root/.vnc
