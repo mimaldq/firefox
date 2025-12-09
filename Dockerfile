@@ -14,14 +14,28 @@ RUN rm -rf /assets/novnc/.git /assets/novnc/utils/websockify/.git
 FROM alpine:latest
 LABEL org.opencontainers.image.title="Lightweight Firefox with noVNC (中文支持)"
 
-# 安装运行时依赖及中文支持
+# 安装运行时依赖及中文支持 - 修正版
 RUN --mount=type=cache,target=/var/cache/apk \
+    apk update && \
     apk add --no-cache \
-    firefox-esr xvfb x11vnc supervisor fluxbox busybox-extras \
-    font-misc-misc font-cursor-misc ttf-dejavu ttf-droid \
-    wqy-zenhei wqy-microhei noto-fonts noto-fonts-cjk noto-fonts-emoji \
-    bash curl tzdata locales \
-    && rm -rf /var/cache/apk/* && \
+    firefox-esr \
+    xvfb \
+    x11vnc \
+    supervisor \
+    fluxbox \
+    busybox-extras \
+    bash \
+    curl \
+    tzdata \
+    locales \
+    font-misc-misc \
+    font-cursor-misc \
+    ttf-dejavu \
+    font-noto \
+    font-noto-cjk \
+    font-noto-emoji \
+    && \
+    rm -rf /var/cache/apk/* && \
     mkdir -p /var/log/supervisor /etc/supervisor/conf.d /root/.vnc /root/.mozilla
 
 # 配置中文环境
@@ -44,7 +58,7 @@ RUN chmod +x /usr/local/bin/start.sh && \
     chown -R firefox:firefox /opt/novnc /home/firefox
 
 # 暴露端口和环境变量
-EXPOSE 7860 5900
+EXPOSE 5800 5900
 ENV DISPLAY=:99 \
     DISPLAY_WIDTH=1280 \
     DISPLAY_HEIGHT=720 \
