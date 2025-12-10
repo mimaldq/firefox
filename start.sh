@@ -1,124 +1,149 @@
 #!/bin/bash
 set -e
 
-# ============================================================================
-# 启动脚本 - 使用KasmVNC
-# ============================================================================
+# 设置默认环境变量
+: ${DISPLAY:=":99"}
+: ${DISPLAY_WIDTH:="1280"}
+: ${DISPLAY_HEIGHT:="720"}
+: ${VNC_PORT:="5900"}
+: ${NOVNC_PORT:="7860"}
+: ${FIREFOX_PROFILE_DIR:="/data/firefox"}
+: ${FIREFOX_DOWNLOAD_DIR:="/data/firefox/downloads"}
+: ${FIREFOX_LOCAL_STORAGE:="/data/firefox/storage"}
+: ${VNC_PASSWORD:="admin"}
 
-# 设置环境变量
-export DISPLAY=${DISPLAY:-:99}
-export DISPLAY_WIDTH=${DISPLAY_WIDTH:-1280}
-export DISPLAY_HEIGHT=${DISPLAY_HEIGHT:-720}
-export VNC_PASSWORD=${VNC_PASSWORD:-admin}
-export VNC_PORT=${VNC_PORT:-5901}
-export WEB_PORT=${WEB_PORT:-7860}
-export DATA_DIR=${DATA_DIR:-/data}
-export ENABLE_PERSISTENCE=${ENABLE_PERSISTENCE:-true}
-export FIREFOX_PROFILE_DIR=${FIREFOX_PROFILE_DIR:-/data/config/firefox}
-export LANG=${LANG:-en_US.UTF-8}
-export LANGUAGE=${LANG:-en_US:en}
-export LC_ALL=${LC_ALL:-en_US.UTF-8}
-
-# 启动信息
-echo "================================================================================"
-echo "🚀 Starting Firefox with KasmVNC"
-echo "================================================================================"
-echo "Display: ${DISPLAY} (${DISPLAY_WIDTH}x${DISPLAY_HEIGHT})"
-echo "VNC Port: ${VNC_PORT}, Web Port: ${WEB_PORT}"
-echo "Data Directory: ${DATA_DIR}"
-echo "================================================================================"
-
-# 初始化存储
-if [ -f /usr/local/bin/init-storage.sh ]; then
-    /usr/local/bin/init-storage.sh
+# 设置时区
+if [ -n "${TZ}" ]; then
+    ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
+    echo ${TZ} > /etc/timezone
 fi
 
-# 设置字体缓存
-if [ ! -f /root/.fonts.cache ]; then
-    fc-cache -f > /dev/null 2>&1
-    touch /root/.fonts.cache
+# 创建必要的目录结构
+mkdir -p /home/appuser/.vnc
+mkdir -p ${FIREFOX_PROFILE_DIR}
+mkdir -p ${FIREFOX_DOWNLOAD_DIR}
+mkdir -p ${FIREFOX_LOCAL_STORAGE}
+
+# 设置目录权限
+chown -R appuser:appuser ${FIREFOX_PROFILE_DIR} 2>/dev/null || true
+
+# 设置VNC密码
+if [ -n "${VNC_PASSWORD}" ]; then
+    echo "${VNC_PASSWORD}" | vncpasswd -f > /home/appuser/.vnc/passwd
+    chmod 600 /home/appuser/.vnc/passwd
+    export X11VNC_ARGS="-rfbauth /home/appuser/.vnc/passwd"
+else
+    export X11VNC_ARGS="-nopw"
 fi
 
-# 清理旧的X锁文件
-rm -f /tmp/.X99-lock /tmp/.X11-unix/X99
+# 生成Firefox用户配置文件
+cat > ${FIREFOX_PROFILE_DIR}/user.js << 'EOF'
+// 基础配置
+user_pref("app.update.auto", false);
+user_pref("app.update.enabled", false);
+user_pref("browser.download.useDownloadDir", true);
+user_pref("browser.download.folderList", 2);
+user_pref("browser.download.dir", "/data/firefox/downloads");
+user_pref("browser.download.downloadDir", "/data/firefox/downloads");
+user_pref("browser.download.defaultFolder", "/data/firefox/downloads");
+user_pref("browser.download.manager.showWhenStarting", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.startup.homepage", "about:blank");
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("datareporting.healthreport.uploadEnabled", false);
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("devtools.everOpened", false);
+user_pref("extensions.autoDisableScopes", 14);
+user_pref("extensions.enabledScopes", 1);
+user_pref("extensions.update.enabled", false);
+user_pref("geo.enabled", false);
+user_pref("network.cookie.cookieBehavior", 1);
+user_pref("places.history.enabled", false);
+user_pref("privacy.donottrackheader.enabled", true);
+user_pref("privacy.trackingprotection.enabled", true);
+user_pref("security.ssl.require_safe_negotiation", false);
+user_pref("signon.rememberSignons", false);
+user_pref("toolkit.telemetry.enabled", false);
+user_pref("toolkit.telemetry.rejected", true);
 
-# 启动Xvfb
-echo "Starting Xvfb..."
-Xvfb ${DISPLAY} -screen 0 ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x24 -ac +extension GLX +render -noreset -nolisten tcp &
-XVFB_PID=$!
-sleep 2
+// 本地存储配置
+user_pref("browser.cache.disk.parent_directory", "/data/firefox/cache");
+user_pref("browser.cache.disk.enable", true);
+user_pref("browser.cache.disk.capacity", 1048576); // 1GB
+user_pref("dom.storage.default_quota", 5120); // 5MB per origin
+user_pref("dom.storage.enabled", true);
+user_pref("dom.storage.default_bucket_quota", 5242880); // 5MB
 
-if ! kill -0 $XVFB_PID 2>/dev/null; then
-    echo "Failed to start Xvfb"
-    exit 1
+// 语言设置
+user_pref("intl.accept_languages", "en-US, en");
+user_pref("intl.locale.requested", "en-US");
+
+// 禁用自动更新
+user_pref("app.update.silent", false);
+user_pref("app.update.staging.enabled", false);
+user_pref("browser.search.update", false);
+user_pref("extensions.update.enabled", false);
+EOF
+
+# 创建prefs.js（如果不存在）
+if [ ! -f "${FIREFOX_PROFILE_DIR}/prefs.js" ]; then
+    echo '// Firefox preferences' > "${FIREFOX_PROFILE_DIR}/prefs.js"
 fi
 
-# 设置Xauthority
-export XAUTHORITY=/tmp/.Xauthority
-touch ${XAUTHORITY}
-xauth generate ${DISPLAY} . trusted 2>/dev/null || true
+# 创建扩展目录
+mkdir -p "${FIREFOX_PROFILE_DIR}/extensions"
+mkdir -p "${FIREFOX_PROFILE_DIR}/storage/default"
 
-# 启动Fluxbox
-echo "Starting Fluxbox..."
-fluxbox &
-sleep 1
+# 创建自定义的supervisor配置文件
+cat > /etc/supervisor/conf.d/custom.conf << EOF
+[program:xvfb]
+command=Xvfb ${DISPLAY} -screen 0 ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x24 -ac +extension GLX +render -noreset
+autorestart=true
+priority=100
 
-# KasmVNC密码设置
-KASM_PASSWD_FILE="/root/.vnc/passwd.kasm"
-if [ ! -f "${KASM_PASSWD_FILE}" ] || [ ! -s "${KASM_PASSWD_FILE}" ]; then
-    echo "Setting KasmVNC password..."
-    mkdir -p /root/.vnc
-    echo "${VNC_PASSWORD}" | kasmvncpasswd -f "${KASM_PASSWD_FILE}" - 2>/dev/null
-    if [ $? -ne 0 ]; then
-        echo "Warning: Failed to set password with kasmvncpasswd, using fallback"
-        echo -e "${VNC_PASSWORD}\n${VNC_PASSWORD}\n" | vncpasswd "${KASM_PASSWD_FILE}" 2>/dev/null
-    fi
+[program:fluxbox]
+command=fluxbox
+autorestart=true
+priority=200
+environment=DISPLAY=${DISPLAY}
+
+[program:firefox]
+command=firefox --display=${DISPLAY} --profile ${FIREFOX_PROFILE_DIR} --new-instance --no-remote
+autorestart=true
+priority=300
+environment=DISPLAY=${DISPLAY},HOME=/home/appuser
+
+[program:x11vnc]
+command=x11vnc -display ${DISPLAY} -forever -shared ${X11VNC_ARGS} -rfbport ${VNC_PORT} -noxdamage -noxrecord -noxfixes -wait 5 -shared -permitfiletransfer -tightfilexfer
+autorestart=true
+priority=400
+
+[program:novnc]
+command=bash -c 'cd /opt/novnc && ./utils/novnc_proxy --vnc localhost:${VNC_PORT} --listen ${NOVNC_PORT}'
+autorestart=true
+priority=500
+EOF
+
+# 解压noVNC的gzip静态资源（如果存在）
+if [ -f /opt/novnc/vnc.html.gz ]; then
+    find /opt/novnc -name "*.gz" -exec gunzip -f {} \;
 fi
 
-# 启动KasmVNC服务器
-echo "Starting KasmVNC server..."
-kasmvncserver ${DISPLAY} \
-    -depth 24 \
-    -geometry ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT} \
-    -rfbauth "${KASM_PASSWD_FILE}" \
-    -rfbport ${VNC_PORT} \
-    -websocketPort ${WEB_PORT} \
-    -frameRate 24 \
-    -interface 0.0.0.0 \
-    -log *:stdout:100 \
-    -fg &
-KASM_PID=$!
-sleep 3
+# 设置日志文件权限
+touch /var/log/supervisor/supervisord.log
+chown appuser:appuser /var/log/supervisor/supervisord.log 2>/dev/null || true
 
-# 启动Firefox
-echo "Starting Firefox..."
-firefox --display=${DISPLAY} --profile ${FIREFOX_PROFILE_DIR} --new-instance &
-sleep 3
+# 输出启动信息
+echo "==========================================="
+echo "Firefox with noVNC Container"
+echo "==========================================="
+echo "Display: ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}"
+echo "VNC Port: ${VNC_PORT}"
+echo "noVNC Port: ${NOVNC_PORT}"
+echo "Firefox Profile: ${FIREFOX_PROFILE_DIR}"
+echo "Downloads Directory: ${FIREFOX_DOWNLOAD_DIR}"
+echo "Local Storage: ${FIREFOX_LOCAL_STORAGE}"
+echo "==========================================="
 
-# 启动Supervisor
-echo "Starting Supervisor..."
-/usr/bin/supervisord -c /etc/supervisor/supervisord.conf &
-
-# 显示访问信息
-echo ""
-echo "================================================================================"
-echo "✅ System is ready!"
-echo "================================================================================"
-echo ""
-echo "🌐 WEB ACCESS (推荐):"
-echo "   URL: http://YOUR_SERVER_IP:${WEB_PORT}/vnc.html"
-echo ""
-echo "🔌 VNC CLIENT ACCESS:"
-echo "   Host: YOUR_SERVER_IP"
-echo "   Port: ${VNC_PORT}"
-echo ""
-echo "🔐 Password: ${VNC_PASSWORD}"
-echo ""
-echo "💡 Tips:"
-echo "   • Web界面支持自适应画质、快捷键和文件传输"
-echo "   • 连接后可以点击工具栏设置画质以节省带宽"
-echo "   • 默认帧率限制为24fps，可在启动参数中调整"
-echo "================================================================================"
-
-# 保持容器运行
-wait $KASM_PID
+# 启动supervisor
+exec supervisord -c /etc/supervisor/supervisord.conf -n
