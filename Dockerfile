@@ -56,10 +56,12 @@ RUN apk add --no-cache \
     && echo "✅ 编码与网络库安装完成"
 
 # 5. 安装VNC核心库 (KasmVNC运行依赖)
-RUN apk add --no-cache \
+# 启用 community 仓库并安装
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories && \
+    apk update && apk add --no-cache \
     libvncserver \
     libvncclient \
-    && echo "✅ VNC核心库安装完成"
+    && echo "✅ VNC核心库安装完成 (来自 community 仓库)"
 
 # 6. 安装Firefox及其额外字体
 RUN apk add --no-cache \
