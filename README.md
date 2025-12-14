@@ -75,7 +75,7 @@ volumes:
 # .env 文件内容示例
   ```bash
    # .env 文件内容示例
-   VNC_PASSWORD=your_very_strong_password_here # 务必修改！
+   VNC_PASSWORD=admin # 默认密码
    DISPLAY_WIDTH=1280
    DISPLAY_HEIGHT=720
    NOVNC_PORT=7860
