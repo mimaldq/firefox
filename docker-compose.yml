@@ -2,31 +2,23 @@ version: '3.8'
 
 services:
   firefox:
-    build: .
-    container_name: firefox-kasmvnc
-    restart: unless-stopped
+    image: ghcr.io/goyo123321/test-firefox:latest  # Firefox VNC容器镜像
+    container_name: firefox                         # 容器名称
+    restart: unless-stopped                         # 重启策略：除非手动停止，否则自动重启
     ports:
-      - "6901:6901"  # KasmVNC Web端口
-      - "5901:5901"  # 传统VNC端口（可选）
-    volumes:
-      - firefox_data:/data
+      - "${NOVNC_PORT:-7860}:7860"  # noVNC web访问端口（默认: 7860）
+      - "${VNC_PORT:-5900}:5900"    # VNC客户端直连端口（默认: 5900）
     environment:
-      # 显示设置
-      - DISPLAY_WIDTH=1280
-      - DISPLAY_HEIGHT=720
-      # VNC设置
-      - VNC_PASSWORD=${VNC_PASSWORD:-changeme}
-      - VNC_PORT=5901
-      - WEB_PORT=6901
-      # 数据设置
-      - DATA_DIR=/data
-      - ENABLE_PERSISTENCE=true
-      # 语言设置
-      - LANG=en_US.UTF-8
-    shm_size: "1gb"
-    mem_limit: "2g"
-    cpus: "1.0"
+      - VNC_PASSWORD=${VNC_PASSWORD:-changeme}  # VNC连接密码（默认: changeme）
+      - DISPLAY_WIDTH=${DISPLAY_WIDTH:-1280}    # 虚拟桌面宽度（默认: 1280）
+      - DISPLAY_HEIGHT=${DISPLAY_HEIGHT:-720}   # 虚拟桌面高度（默认: 720）
+      - NOVNC_PORT=${NOVNC_PORT:-7860}          # noVNC内部端口（默认: 7860）
+      - VNC_PORT=${VNC_PORT:-5900}              # VNC内部端口（默认: 5900）
+      - DATA_DIR=/data                          # 数据目录路径（固定值: /data）
+    shm_size: "${SHM_SIZE:-1gb}"                # 共享内存大小（默认: 1GB）
+    volumes:
+      - firefox_data:/data/firefox              # Firefox配置文件持久化存储
+      - ./downloads:/data/downloads             # 下载目录映射到宿主机当前目录下的downloads文件夹
 
 volumes:
-  firefox_data:
-    name: firefox_kasmvnc_data
+  firefox_data:                                 # Firefox数据卷定义
