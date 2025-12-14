@@ -6,26 +6,23 @@ VNC_PASSWORD# firefox
 
 ## 快速开始
 ```bash
-# 克隆仓库
-git clone [https://github.com/goyo123321/lightweight-firefox-novnc.git
+# 1. 克隆仓库
+git clone https://github.com/goyo123321/lightweight-firefox-novnc.git
 cd lightweight-firefox-novnc
-](https://github.com/goyo123321/firefox)
-# 复制环境变量文件并修改密码
+
+# 2. 复制环境变量文件
 cp .env.example .env
-# 编辑 .env 文件，设置你的 VNC_PASSWORD
 
-# 使用 Docker Compose 启动
+# 3. 编辑 .env 文件，设置你的 VNC_PASSWORD
+# 使用你喜欢的编辑器，比如 nano 或 vim
+nano .env
+# 或者
+vim .env
+# 或者如果你有 VSCode
+code .env
+
+# 4. 使用 Docker Compose 启动
 docker-compose up -d
-
-docker-compose.yml：用于一键部署和运行，配置了端口、环境变量和卷挂载。
-# 复制环境变量文件并修改密码
-cp .env.example .env
-# 编辑 .env 文件，设置你的 VNC_PASSWORD
-
-# 使用 Docker Compose 启动
-docker-compose up -d
-
-docker-compose.yml：用于一键部署和运行，配置了端口、环境变量和卷挂载。
 ```
 # 设置环境变量
 DISPLAY=:99
