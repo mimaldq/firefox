@@ -33,20 +33,12 @@ RUN apk add --no-cache \
     supervisor \
     bash \
     fluxbox \
+    # 字体包
+    font-dejavu \
+    font-noto-cjk \
     font-misc-misc \
     font-cursor-misc \
-    ttf-dejavu \
-    ttf-freefont \
-    ttf-liberation \
-    ttf-inconsolata \
-    # 中文字体包
-    wqy-zenhei \
-    wqy-microhei \
-    font-noto \
-    font-noto-cjk \
-    font-noto-sans-sc \
-    font-noto-serif-sc \
-    # 字体配置工具
+    # 字体配置工具（必需）
     fontconfig \
     # DBus支持
     dbus
@@ -73,10 +65,10 @@ RUN mkdir -p /default-firefox-profile && \
     mkdir -p /default-firefox-profile/firefox/default && \
     # 设置默认语言为中文优先，英文备用
     echo 'pref("intl.accept_languages", "zh-CN, zh, en-US, en");' > /default-firefox-profile/firefox/default/prefs.js && \
-    # 设置字体偏好
+    # 设置字体偏好 - 使用Noto CJK字体
     echo 'pref("font.name.serif.zh-CN", "Noto Serif CJK SC");' >> /default-firefox-profile/firefox/default/prefs.js && \
     echo 'pref("font.name.sans-serif.zh-CN", "Noto Sans CJK SC");' >> /default-firefox-profile/firefox/default/prefs.js && \
-    echo 'pref("font.name.monospace.zh-CN", "WenQuanYi Micro Hei Mono");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("font.name.monospace.zh-CN", "Noto Sans Mono CJK SC");' >> /default-firefox-profile/firefox/default/prefs.js && \
     # 设置编码支持
     echo 'pref("intl.charset.default", "UTF-8");' >> /default-firefox-profile/firefox/default/prefs.js && \
     echo 'pref("intl.charset.detector", "universal");' >> /default-firefox-profile/firefox/default/prefs.js && \
@@ -93,19 +85,20 @@ RUN mkdir -p /etc/fonts/conf.d && \
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
-  <!-- 添加中文字体目录 -->
-  <dir>/usr/share/fonts/wqy-zenhei</dir>
-  <dir>/usr/share/fonts/wqy-microhei</dir>
-  <dir>/usr/share/fonts/noto</dir>
+  <!-- 添加字体目录 -->
+  <dir>/usr/share/fonts/dejavu</dir>
   <dir>/usr/share/fonts/noto-cjk</dir>
+  <dir>/usr/share/fonts/misc</dir>
+  <dir>/usr/share/fonts/cursor</dir>
 
-  <!-- 中文别名定义 -->
+  <!-- 字体别名定义 -->
   <alias>
     <family>sans-serif</family>
     <prefer>
       <family>Noto Sans CJK SC</family>
-      <family>WenQuanYi Micro Hei</family>
-      <family>WenQuanYi Zen Hei</family>
+      <family>Noto Sans CJK TC</family>
+      <family>Noto Sans CJK JP</family>
+      <family>Noto Sans CJK KR</family>
       <family>DejaVu Sans</family>
     </prefer>
   </alias>
@@ -114,7 +107,9 @@ RUN mkdir -p /etc/fonts/conf.d && \
     <family>serif</family>
     <prefer>
       <family>Noto Serif CJK SC</family>
-      <family>WenQuanYi Zen Hei</family>
+      <family>Noto Serif CJK TC</family>
+      <family>Noto Serif CJK JP</family>
+      <family>Noto Serif CJK KR</family>
       <family>DejaVu Serif</family>
     </prefer>
   </alias>
@@ -122,13 +117,15 @@ RUN mkdir -p /etc/fonts/conf.d && \
   <alias>
     <family>monospace</family>
     <prefer>
-      <family>WenQuanYi Micro Hei Mono</family>
       <family>Noto Sans Mono CJK SC</family>
+      <family>Noto Sans Mono CJK TC</family>
+      <family>Noto Sans Mono CJK JP</family>
+      <family>Noto Sans Mono CJK KR</family>
       <family>DejaVu Sans Mono</family>
     </prefer>
   </alias>
 
-  <!-- 调整中文渲染 -->
+  <!-- 调整中日韩字体渲染 -->
   <match target="font">
     <test name="lang" compare="contains">
       <string>zh</string>
@@ -145,6 +142,9 @@ RUN mkdir -p /etc/fonts/conf.d && \
     </edit>
     <edit name="autohint" mode="assign">
       <bool>false</bool>
+    </edit>
+    <edit name="hintstyle" mode="assign">
+      <const>hintslight</const>
     </edit>
   </match>
 </fontconfig>
