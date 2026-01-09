@@ -39,8 +39,66 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: 输出镜像信息
+      - name: 获取并显示镜像大小
         run: |
+          # 设置镜像完整名称
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.custom_image_name }}:latest"
+          
+          echo "📊 正在获取镜像大小信息..."
+          
+          # 拉取镜像到本地以便检查大小
+          docker pull $IMAGE_NAME
+          
+          # 获取镜像详细信息
+          IMAGE_INFO=$(docker image inspect $IMAGE_NAME --format='{{.Size}} {{.Created}} {{.Os}}/{{.Architecture}}')
+          
+          # 解析信息
+          SIZE_BYTES=$(echo $IMAGE_INFO | cut -d' ' -f1)
+          CREATED=$(echo $IMAGE_INFO | cut -d' ' -f2 | sed 's/T/ /' | cut -d'.' -f1)
+          PLATFORM=$(echo $IMAGE_INFO | cut -d' ' -f3)
+          
+          # 计算不同单位的大小
+          SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1024 / 1024" | bc)
+          SIZE_GB=$(echo "scale=2; $SIZE_BYTES / 1024 / 1024 / 1024" | bc)
+          
+          # 获取镜像层数
+          LAYERS=$(docker image inspect $IMAGE_NAME --format='{{.RootFS.Layers}}' | tr ',' '\n' | wc -l)
+          
+          # 获取镜像标签
+          REPO_TAGS=$(docker image inspect $IMAGE_NAME --format='{{.RepoTags}}')
+          
+          echo "========================================"
+          echo "📦 镜像详细信息"
+          echo "========================================"
+          echo "📛 镜像名称: $REPO_TAGS"
+          echo "🖥️  平台架构: $PLATFORM"
+          echo "📏 镜像大小:"
+          echo "   - $SIZE_BYTES 字节"
+          echo "   - $SIZE_MB MB"
+          echo "   - $SIZE_GB GB"
+          echo "📅 创建时间: $CREATED"
+          echo "🔢 镜像层数: $LAYERS 层"
+          echo "========================================"
+          
+          # 可选：显示每个层的大小（详细分析）
+          echo "🔍 镜像层详细分析:"
+          docker history $IMAGE_NAME --no-trunc --format "table {{.CreatedBy}}\t{{.Size}}" | head -20
+          
+          echo ""
           echo "✅ 镜像构建并推送成功！"
-          echo "📦 镜像地址：ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.custom_image_name }}:latest"
-          echo "📥 拉取命令：docker pull ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.custom_image_name }}:latest"
+          echo "📥 拉取命令：docker pull $IMAGE_NAME"
+
+      - name: 验证镜像功能
+        run: |
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.custom_image_name }}:latest"
+          
+          echo "🔬 验证镜像基本功能..."
+          
+          # 测试运行容器，显示帮助信息
+          docker run --rm $IMAGE_NAME echo "✅ 镜像基本功能正常"
+          
+          # 检查镜像中的关键文件
+          docker run --rm $IMAGE_NAME ls -la /usr/local/bin/start.sh
+          docker run --rm $IMAGE_NAME ls -la /opt/novnc/
+          
+          echo "✅ 镜像验证完成"
