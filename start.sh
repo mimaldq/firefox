@@ -18,9 +18,9 @@ export GTK_IM_MODULE=${GTK_IM_MODULE:-xim}
 mkdir -p /root/.vnc
 mkdir -p /var/log/supervisor
 
-# 验证中文字体是否已正确安装
+# 验证字体是否已正确安装
 echo "检查字体配置..."
-fc-list | grep -i "chinese\|中文\|noto\|wqy" | head -10
+fc-list | grep -i "noto\|dejavu" | head -10
 
 # 更新字体缓存（确保运行时字体可用）
 fc-cache -fv
@@ -51,7 +51,7 @@ if [ ! -d "${FIREFOX_DATA_DIR}" ] || [ -z "$(ls -A ${FIREFOX_DATA_DIR} 2>/dev/nu
 pref("intl.accept_languages", "zh-CN, zh, en-US, en");
 pref("font.name.serif.zh-CN", "Noto Serif CJK SC");
 pref("font.name.sans-serif.zh-CN", "Noto Sans CJK SC");
-pref("font.name.monospace.zh-CN", "WenQuanYi Micro Hei Mono");
+pref("font.name.monospace.zh-CN", "Noto Sans Mono CJK SC");
 pref("intl.charset.default", "UTF-8");
 pref("intl.charset.detector", "universal");
 pref("browser.download.dir", "/data/downloads");
@@ -82,10 +82,6 @@ ln -sf "${FIREFOX_DATA_DIR}" /root/.mozilla
 # 创建其他必要的子目录
 mkdir -p "${DATA_DIR}/downloads"
 mkdir -p "${DATA_DIR}/logs"
-
-# 设置Xvfb显示分辨率
-echo "设置显示分辨率为: ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}"
-X_SCREEN="${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x24"
 
 # 启动Supervisor来管理所有进程
 echo "======================================="
