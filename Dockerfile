@@ -47,7 +47,7 @@ RUN apk add --no-cache \
 RUN rm -rf /var/cache/apk/*
 
 # 创建必要的目录结构
-RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d /root/.vnc
+RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d /root/.vnc /opt/www
 
 # 关键优化：从构建器阶段仅复制准备好的静态资产
 COPY --from=builder /assets/novnc /opt/novnc
@@ -57,321 +57,11 @@ COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-# 创建伪装首页目录结构
-RUN mkdir -p /opt/www && \
-    mkdir -p /opt/novnc-real
-
-# 移动noVNC文件到隐藏目录
-RUN mv /opt/novnc/* /opt/novnc-real/ && \
-    rm -rf /opt/novnc && \
-    mv /opt/novnc-real /opt/novnc && \
-    ln -s /opt/novnc /opt/www/vnc
-
 # 创建伪装首页
-RUN cat > /opt/www/index.html << 'EOF'
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>系统维护中</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-        }
-        
-        .maintenance-container {
-            text-align: center;
-            padding: 3rem;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 800px;
-            margin: 2rem;
-        }
-        
-        .logo {
-            font-size: 3.5rem;
-            margin-bottom: 1.5rem;
-            animation: float 3s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        h1 {
-            font-size: 2.8rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(45deg, #fff, #f0f0f0);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .status {
-            display: inline-block;
-            padding: 0.5rem 1.5rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 30px;
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-        
-        .status.active {
-            color: #4ade80;
-        }
-        
-        .status::before {
-            content: "●";
-            margin-right: 0.5rem;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .info-box {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 15px;
-            padding: 2rem;
-            margin: 2rem 0;
-            text-align: left;
-        }
-        
-        .info-box h3 {
-            color: #d1d5db;
-            margin-bottom: 1rem;
-            font-size: 1.3rem;
-        }
-        
-        .info-box ul {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .info-box li {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .info-box li:last-child {
-            border-bottom: none;
-        }
-        
-        .progress-container {
-            margin: 2rem 0;
-        }
-        
-        .progress-bar {
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-top: 0.5rem;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4ade80, #3b82f6);
-            width: 76%;
-            border-radius: 3px;
-            animation: progress 2s ease-out;
-        }
-        
-        @keyframes progress {
-            from { width: 0; }
-            to { width: 76%; }
-        }
-        
-        .contact {
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .contact p {
-            margin: 0.5rem 0;
-            color: #d1d5db;
-        }
-        
-        .timer {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 1rem 0;
-            color: #fbbf24;
-        }
-        
-        .hidden-admin {
-            margin-top: 2rem;
-            opacity: 0.3;
-            font-size: 0.9rem;
-            color: #9ca3af;
-        }
-        
-        .hidden-admin a {
-            color: #9ca3af;
-            text-decoration: none;
-        }
-        
-        .hidden-admin a:hover {
-            color: #fff;
-        }
-        
-        @media (max-width: 768px) {
-            .maintenance-container {
-                padding: 2rem 1.5rem;
-                margin: 1rem;
-            }
-            
-            h1 {
-                font-size: 2rem;
-            }
-            
-            .logo {
-                font-size: 2.5rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="maintenance-container">
-        <div class="logo">🔧</div>
-        <h1>系统维护升级中</h1>
-        <div class="status active">维护进行中</div>
-        
-        <div class="info-box">
-            <h3>系统状态</h3>
-            <ul>
-                <li>
-                    <span>数据库服务</span>
-                    <span style="color:#4ade80">● 正常运行</span>
-                </li>
-                <li>
-                    <span>API网关</span>
-                    <span style="color:#4ade80">● 正常运行</span>
-                </li>
-                <li>
-                    <span>文件存储</span>
-                    <span style="color:#f59e0b">◐ 维护中</span>
-                </li>
-                <li>
-                    <span>用户认证</span>
-                    <span style="color:#4ade80">● 正常运行</span>
-                </li>
-                <li>
-                    <span>缓存服务</span>
-                    <span style="color:#4ade80">● 正常运行</span>
-                </li>
-            </ul>
-        </div>
-        
-        <div class="progress-container">
-            <p>系统升级进度</p>
-            <div class="progress-bar">
-                <div class="progress-fill"></div>
-            </div>
-        </div>
-        
-        <div class="timer" id="countdown">00:00:00</div>
-        
-        <div class="info-box">
-            <h3>维护详情</h3>
-            <p>本次维护主要进行系统安全升级和性能优化，预计持续时间为4小时。维护期间，部分功能可能暂时无法使用。给您带来的不便，敬请谅解。</p>
-        </div>
-        
-        <div class="contact">
-            <p>📧 技术支持邮箱: support@example.com</p>
-            <p>📞 紧急联系电话: +86 400-123-4567</p>
-            <p>⏰ 预计恢复时间: 今日 22:00</p>
-        </div>
-        
-        <div class="hidden-admin">
-            <a href="/vnc/vnc.html" style="text-decoration:none;color:inherit">.</a>
-        </div>
-    </div>
-    
-    <script>
-        // 倒计时功能
-        function updateCountdown() {
-            const now = new Date();
-            const target = new Date();
-            target.setHours(22, 0, 0, 0); // 设置为今天22:00
-            
-            if (now > target) {
-                target.setDate(target.getDate() + 1); // 如果已经过了22:00，设为明天
-            }
-            
-            const diff = target - now;
-            
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            document.getElementById('countdown').textContent = 
-                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-        
-        // 初始更新
-        updateCountdown();
-        
-        // 每秒更新一次
-        setInterval(updateCountdown, 1000);
-        
-        // 随机更新状态指示器
-        function updateStatusIndicators() {
-            const indicators = document.querySelectorAll('.status span');
-            indicators.forEach(indicator => {
-                if (Math.random() > 0.95) {
-                    const colors = ['#4ade80', '#f59e0b', '#ef4444'];
-                    const statuses = ['正常运行', '维护中', '故障'];
-                    const randomIndex = Math.floor(Math.random() * 3);
-                    
-                    indicator.style.color = colors[randomIndex];
-                    indicator.textContent = `● ${statuses[randomIndex]}`;
-                    
-                    // 2秒后恢复
-                    setTimeout(() => {
-                        indicator.style.color = '#4ade80';
-                        indicator.textContent = '● 正常运行';
-                    }, 2000);
-                }
-            });
-        }
-        
-        setInterval(updateStatusIndicators, 5000);
-        
-        // 进度条动画
-        let progress = 76;
-        setInterval(() => {
-            const progressBar = document.querySelector('.progress-fill');
-            if (progress < 100) {
-                progress += 0.1;
-                progressBar.style.width = `${progress}%`;
-            }
-        }, 10000);
-    </script>
-</body>
-</html>
-EOF
+COPY index.html /opt/www/index.html
+
+# 创建noVNC目录的符号链接
+RUN ln -sf /opt/novnc /opt/www/vnc
 
 # 设置noVNC默认跳转页面
 RUN echo '<html><head><meta http-equiv="refresh" content="0;url=vnc.html"></head><body></body></html>' > /opt/novnc/index.html
@@ -472,7 +162,7 @@ RUN fc-cache -fv
 # 创建X11相关目录
 RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 
-# 创建新的启动脚本
+# 创建完整的启动脚本
 RUN cat > /usr/local/bin/start-with-nginx.sh << 'EOF'
 #!/bin/bash
 
@@ -496,7 +186,7 @@ mkdir -p /var/log/supervisor
 
 # 验证字体是否已正确安装
 echo "检查字体配置..."
-fc-list | grep -i "noto\|dejavu" | head -10
+fc-list | grep -i "noto\|dejavu" | head -5
 
 # 更新字体缓存（确保运行时字体可用）
 fc-cache -fv
