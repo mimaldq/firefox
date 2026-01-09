@@ -38,7 +38,18 @@ RUN apk add --no-cache \
     ttf-dejavu \
     ttf-freefont \
     ttf-liberation \
-    ttf-inconsolata
+    ttf-inconsolata \
+    # 中文字体包
+    wqy-zenhei \
+    wqy-microhei \
+    font-noto \
+    font-noto-cjk \
+    font-noto-sans-sc \
+    font-noto-serif-sc \
+    # 字体配置工具
+    fontconfig \
+    # DBus支持
+    dbus
 
 # 清理缓存
 RUN rm -rf /var/cache/apk/*
@@ -60,13 +71,95 @@ RUN echo '<html><head><meta http-equiv="refresh" content="0;url=vnc.html"></head
 # 为Firefox创建默认配置文件（如果/data/firefox没有挂载则使用这个）
 RUN mkdir -p /default-firefox-profile && \
     mkdir -p /default-firefox-profile/firefox/default && \
-    echo 'pref("intl.accept_languages", "en-US, en");' > /default-firefox-profile/firefox/default/prefs.js && \
+    # 设置默认语言为中文优先，英文备用
+    echo 'pref("intl.accept_languages", "zh-CN, zh, en-US, en");' > /default-firefox-profile/firefox/default/prefs.js && \
+    # 设置字体偏好
+    echo 'pref("font.name.serif.zh-CN", "Noto Serif CJK SC");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("font.name.sans-serif.zh-CN", "Noto Sans CJK SC");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("font.name.monospace.zh-CN", "WenQuanYi Micro Hei Mono");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    # 设置编码支持
+    echo 'pref("intl.charset.default", "UTF-8");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("intl.charset.detector", "universal");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    # 下载目录设置
+    echo 'pref("browser.download.dir", "/data/downloads");' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("browser.download.folderList", 2);' >> /default-firefox-profile/firefox/default/prefs.js && \
+    echo 'pref("browser.download.useDownloadDir", true);' >> /default-firefox-profile/firefox/default/prefs.js && \
+    # 其他基本设置
     echo '{"HomePage":"about:blank","StartPage":"about:blank"}' > /default-firefox-profile/firefox/default/user.js
+
+# 创建自定义字体配置文件
+RUN mkdir -p /etc/fonts/conf.d && \
+    cat > /etc/fonts/conf.d/99-local.conf << 'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <!-- 添加中文字体目录 -->
+  <dir>/usr/share/fonts/wqy-zenhei</dir>
+  <dir>/usr/share/fonts/wqy-microhei</dir>
+  <dir>/usr/share/fonts/noto</dir>
+  <dir>/usr/share/fonts/noto-cjk</dir>
+
+  <!-- 中文别名定义 -->
+  <alias>
+    <family>sans-serif</family>
+    <prefer>
+      <family>Noto Sans CJK SC</family>
+      <family>WenQuanYi Micro Hei</family>
+      <family>WenQuanYi Zen Hei</family>
+      <family>DejaVu Sans</family>
+    </prefer>
+  </alias>
+
+  <alias>
+    <family>serif</family>
+    <prefer>
+      <family>Noto Serif CJK SC</family>
+      <family>WenQuanYi Zen Hei</family>
+      <family>DejaVu Serif</family>
+    </prefer>
+  </alias>
+
+  <alias>
+    <family>monospace</family>
+    <prefer>
+      <family>WenQuanYi Micro Hei Mono</family>
+      <family>Noto Sans Mono CJK SC</family>
+      <family>DejaVu Sans Mono</family>
+    </prefer>
+  </alias>
+
+  <!-- 调整中文渲染 -->
+  <match target="font">
+    <test name="lang" compare="contains">
+      <string>zh</string>
+      <string>zh-cn</string>
+      <string>zh-tw</string>
+      <string>ja</string>
+      <string>ko</string>
+    </test>
+    <edit name="antialias" mode="assign">
+      <bool>true</bool>
+    </edit>
+    <edit name="hinting" mode="assign">
+      <bool>true</bool>
+    </edit>
+    <edit name="autohint" mode="assign">
+      <bool>false</bool>
+    </edit>
+  </match>
+</fontconfig>
+EOF
+
+# 更新字体缓存
+RUN fc-cache -fv
+
+# 创建X11相关目录
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 
 # 暴露端口
 EXPOSE 7860 5900
 
-# 声明挂载卷 - 现在只需要挂载一个目录
+# 声明挂载卷
 VOLUME /data
 
 # 启动入口
